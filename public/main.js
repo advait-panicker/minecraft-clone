@@ -1,5 +1,5 @@
 import * as THREE from './three.js-master/build/three.module.js';
-import { FirstPersonControls } from './three.js-master/examples/jsm/controls/FirstPersonControls.js';
+import { PointerLockControls } from './three.js-master/examples/jsm/controls/PointerLockControls.js';
 
 // Three.js setup
 
@@ -14,10 +14,70 @@ var camera = new THREE.PerspectiveCamera(
     0.1,
     1000
 );
-var controls = new FirstPersonControls( camera, renderer.domElement );
-controls.lookSpeed = 0.05;
-controls.movementSpeed = 50;
 
+// Controls
+var controls = new PointerLockControls( camera, renderer.domElement );
+
+let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, moveUp = false, moveDown = false;
+let SPEED = 50;
+document.addEventListener('click', function() {
+    controls.lock();
+}, false);
+var onKeyDown = function(event) {
+    switch (event.keyCode) {
+        case 87: // w
+        case 38: // up
+            moveForward = true;    
+            break;
+        case 83: // s
+        case 40: // down
+            moveBackward = true;    
+            break;
+        case 65: // a
+        case 18: // left
+            moveLeft = true;    
+            break;
+        case 68: // d
+        case 39: // right
+            moveRight = true;    
+            break;
+        case 32: // space
+            moveUp = true;    
+            break;
+        case 16: // shift
+            moveDown = true;    
+            break;
+    }
+};
+var onKeyUp = function(event) {
+    switch (event.keyCode) {
+        case 87: // w
+        case 38: // up
+            moveForward = false;    
+            break;
+        case 83: // s
+        case 40: // down
+            moveBackward = false;    
+            break;
+        case 65: // a
+        case 18: // left
+            moveLeft = false;    
+            break;
+        case 68: // d
+        case 39: // right
+            moveRight = false;    
+            break;
+        case 32: // space
+            moveUp = false;    
+            break;
+        case 16: // shift
+            moveDown = false;    
+            break;
+    }
+};
+
+document.addEventListener('keydown', onKeyDown, false);
+document.addEventListener('keyup', onKeyUp, false);
 
 // Geometry
 const RENDERDIST = 10;
@@ -141,7 +201,13 @@ camera.rotation.z = 0.019673363770192468;
 let clock = new THREE.Clock();
 
 function animate() {
-    controls.update(clock.getDelta());
+    // controls.update(clock.getDelta());
+    let delta = clock.getDelta();
+    if (controls.isLocked) {
+        controls.moveForward((moveForward-moveBackward)*SPEED*delta);
+        controls.moveRight((moveRight-moveLeft)*SPEED*delta);
+        camera.position.y += (moveUp-moveDown)*SPEED*delta;
+    }
     requestAnimationFrame( animate );
     // object.rotation.y += 0.1;
     renderer.render( scene, camera);
