@@ -16,10 +16,11 @@ var camera = new THREE.PerspectiveCamera(
 );
 
 // Controls
+const clamp = (num, a, b) => Math.max(Math.min(num, Math.max(a, b)), Math.min(a, b));
 var controls = new PointerLockControls( camera, renderer.domElement );
 
 let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, moveUp = false, moveDown = false;
-let SPEED = 50;
+let SPEED = 200;
 document.addEventListener('click', function() {
     controls.lock();
 }, false);
@@ -34,7 +35,7 @@ var onKeyDown = function(event) {
             moveBackward = true;    
             break;
         case 65: // a
-        case 18: // left
+        case 37: // left
             moveLeft = true;    
             break;
         case 68: // d
@@ -60,7 +61,7 @@ var onKeyUp = function(event) {
             moveBackward = false;    
             break;
         case 65: // a
-        case 18: // left
+        case 37: // left
             moveLeft = false;    
             break;
         case 68: // d
@@ -78,13 +79,6 @@ var onKeyUp = function(event) {
 
 document.addEventListener('keydown', onKeyDown, false);
 document.addEventListener('keyup', onKeyUp, false);
-
-// Geometry
-const RENDERDIST = 10;
-const BLOCKSIZE = 10;
-
-let geoms = [];
-let chunks = []; // Retrieve from Server
 
 // Textures // 0_0 i really dont know about this one
 const loader = new THREE.TextureLoader();
@@ -114,6 +108,13 @@ for (let i = 0, l = TEXTURELIST.length; i < l; i++) {
     textures[name] = mats;
 };
 
+// Geometry
+const RENDERDIST = 4;
+const BLOCKSIZE = 10;
+
+let chunks = {}; // Retrieve from Server
+let renderedChunks = {};
+
 const Tile = {
     TOP : {x : [1, 0, 1, 0], y : [ 0,  0,  0,  0], z : [0, 0, 1, 1], id : 0},
     ZL  : {x : [1, 0, 1, 0], y : [-1, -1,  0,  0], z : [0, 0, 0, 0], id : 1},
@@ -123,8 +124,9 @@ const Tile = {
 };
 
 // Create face using verticies and face push() // DEF client
-function makeFace(chnkX, chnkZ, x, y, z, face, block) {
-    let geom = geoms[chnkZ * RENDERDIST + chnkX][block][face.id]; let verts = geom.vertices.length;
+function makeFace(chunkGeom, chnkX, chnkZ, x, y, z, face, block) {
+    let geom = chunkGeom[block][face.id];
+    let verts = geom.vertices.length;
     for (var i = 0; i < 4; i++) {
         geom.vertices.push( new THREE.Vector3((x+face.x[i]+chnkX*CHUNKSIZE)*BLOCKSIZE, (y+face.y[i])*BLOCKSIZE, (z+face.z[i]+chnkZ*CHUNKSIZE)*BLOCKSIZE));
     }
@@ -134,74 +136,83 @@ function makeFace(chnkX, chnkZ, x, y, z, face, block) {
 }
 
 // Retrieve Existing or New Chunk -- Need to replace w/ server code
-function getChunk(chnkX, chnkZ) {
-    const id = chnkZ * RENDERDIST + chnkX;
+function loadChunk(chnkX, chnkZ) {
+    const id = chnkZ * WORLDSIZE + chnkX;
     if (chunks[id] == undefined) {
-        chunks[id] = loadChunk(chnkX, chnkZ); // <-- This function specifically // Prob w/ io.emit(ChnkX, ChnkZ)
+        chunks[id] = generateChunk(chnkX, chnkZ); // <-- This function specifically // Prob w/ io.emit(ChnkX, ChnkZ)
     }
     return chunks[id];
 }
 
-// Main Chunk Loop
-for (var chnkZ = 0; chnkZ < RENDERDIST; chnkZ++) {
-    for (var chnkX = 0; chnkX < RENDERDIST; chnkX++) {
-        const chnkid = chnkZ * RENDERDIST + chnkX;
-        geoms[chnkid] = {};
-        const chunkData = getChunk(chnkX, chnkZ);
-        for (var z = 0; z < CHUNKSIZE; z++) {
-            for (var x = 0; x < CHUNKSIZE; x++) {
-                for (var y = 0; y < 256; y++) {
-                    let blockName = chunkData(x, y, z).name; 
-                    if (chunkData(x, y, z).name == "air") {
-                        continue;
-                    } else {
-                        if (geoms[chnkid][blockName] == undefined) {
-                            geoms[chnkid][blockName] = [new THREE.Geometry(),new THREE.Geometry(),new THREE.Geometry(),new THREE.Geometry(),new THREE.Geometry()];
-                        }
-                        if (chunkData(x, y+1, z).name == "air") {
-                            makeFace(chnkX, chnkZ, x, y, z, Tile.TOP, blockName);
-                        }
-                        if (chunkData(x, y, z-1).name == "air" || (chunkData(x, y, z-1).name == "und" && getChunk(chnkX, chnkZ-1)(x, y, CHUNKSIZE-1).name == "air")) {
-                            makeFace(chnkX, chnkZ, x, y, z, Tile.ZL, blockName);
-                        }
-                        if (chunkData(x, y, z+1).name == "air" || (chunkData(x, y, z+1).name == "und" && getChunk(chnkX, chnkZ+1)(x, y, 0).name == "air")) {
-                            makeFace(chnkX, chnkZ, x, y, z, Tile.ZR, blockName);
-                        }
-                        if (chunkData(x-1, y, z).name == "air" || (chunkData(x-1, y, z).name == "und" && getChunk(chnkX-1, chnkZ)(CHUNKSIZE-1, y, z).name == "air")) {
-                            makeFace(chnkX, chnkZ, x, y, z, Tile.XL, blockName);
-                        }
-                        if (chunkData(x+1, y, z).name == "air" || (chunkData(x+1, y, z).name == "und" && getChunk(chnkX+1, chnkZ)(0, y, z).name == "air")) {
-                            makeFace(chnkX, chnkZ, x, y, z, Tile.XR, blockName);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Add Chunk Geom to Scene
-        for (let block in geoms[chnkid]) {
-            geoms[chnkid][block].forEach(function (geom, id) {
-                geom.computeFaceNormals();
-                var object = new THREE.Mesh( geom, textures[block][id]);
-                scene.add(object);
-            });
-        }
-    }
-}
 camera.position.x = 653.3029678495917;
 camera.position.y = 151.47234323017045;
 camera.position.z = 697.3360835106855;
 
-camera.rotation.x = 0.026608505754609577;
 camera.rotation.y = 0.8320073541233839;
-camera.rotation.z = 0.019673363770192468;
+// Main Chunk Loop
+function drawRenderChunks() {
+    let playerChunkX = Math.floor(camera.position.x / BLOCKSIZE / WORLDSIZE);
+    let playerChunkZ = Math.floor(camera.position.z / BLOCKSIZE / WORLDSIZE);
+    console.log(playerChunkX, playerChunkZ)
+    for (var chnkZ = playerChunkZ-RENDERDIST; chnkZ < playerChunkZ+RENDERDIST; chnkZ++) {
+        for (var chnkX = playerChunkX-RENDERDIST; chnkX < playerChunkX+RENDERDIST; chnkX++) {
+            if (renderedChunks[chnkX + chnkZ * WORLDSIZE] == undefined) {
+                drawChunk(chnkX, chnkZ);
+                renderedChunks[chnkX + chnkZ * WORLDSIZE] = true;
+            }
+        }
+    }
+    for (let i = 0, l = renderedChunks.length; i < l; i++) {
+
+    }
+}
+function drawChunk(chnkX, chnkZ) {
+    let geom = {};
+    const chunkData = loadChunk(chnkX, chnkZ);
+    for (var z = 0; z < CHUNKSIZE; z++) {
+        for (var x = 0; x < CHUNKSIZE; x++) {
+            for (var y = 0; y < 256; y++) {
+                let blockName = chunkData(x, y, z).name; 
+                if (chunkData(x, y, z).name == "air") {
+                    continue;
+                } else {
+                    if (geom[blockName] == undefined) {
+                        geom[blockName] = [new THREE.Geometry(),new THREE.Geometry(),new THREE.Geometry(),new THREE.Geometry(),new THREE.Geometry()];
+                    }
+                    if (chunkData(x, y+1, z).name == "air") {
+                        makeFace(geom, chnkX, chnkZ, x, y, z, Tile.TOP, blockName);
+                    }
+                    if (chunkData(x, y, z-1).name == "air" || (chunkData(x, y, z-1).name == "und" && loadChunk(chnkX, chnkZ-1)(x, y, CHUNKSIZE-1).name == "air")) {
+                        makeFace(geom, chnkX, chnkZ, x, y, z, Tile.ZL, blockName);
+                    }
+                    if (chunkData(x, y, z+1).name == "air" || (chunkData(x, y, z+1).name == "und" && loadChunk(chnkX, chnkZ+1)(x, y, 0).name == "air")) {
+                        makeFace(geom, chnkX, chnkZ, x, y, z, Tile.ZR, blockName);
+                    }
+                    if (chunkData(x-1, y, z).name == "air" || (chunkData(x-1, y, z).name == "und" && loadChunk(chnkX-1, chnkZ)(CHUNKSIZE-1, y, z).name == "air")) {
+                        makeFace(geom, chnkX, chnkZ, x, y, z, Tile.XL, blockName);
+                    }
+                    if (chunkData(x+1, y, z).name == "air" || (chunkData(x+1, y, z).name == "und" && loadChunk(chnkX+1, chnkZ)(0, y, z).name == "air")) {
+                        makeFace(geom, chnkX, chnkZ, x, y, z, Tile.XR, blockName);
+                    }
+                }
+            }
+        }
+    }
+    // let meshes = [];
+    for (let block in geom) {
+        for (let i = 0, l = geom[block].length; i < l; i++) {
+            geom[block][i].computeFaceNormals();
+            scene.add(new THREE.Mesh( geom[block][i], textures[block][i]) );
+        }
+    }
+}
 
 // Main Loop -- Client
 
 let clock = new THREE.Clock();
 
 function animate() {
-    // controls.update(clock.getDelta());
+    drawRenderChunks();
     let delta = clock.getDelta();
     if (controls.isLocked) {
         controls.moveForward((moveForward-moveBackward)*SPEED*delta);
@@ -209,7 +220,9 @@ function animate() {
         camera.position.y += (moveUp-moveDown)*SPEED*delta;
     }
     requestAnimationFrame( animate );
-    // object.rotation.y += 0.1;
-    renderer.render( scene, camera);
+    renderer.render(scene, camera);
 }
 animate();
+// while(true) {
+//     drawRenderChunks();
+// }

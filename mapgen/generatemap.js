@@ -1,9 +1,10 @@
 const seed = 'this is minecraft';
 const CHUNKSIZE = 16;
+const WORLDSIZE = 16;
 
 let heightMap = new perlin(seed);
 
-function loadChunk(chnkX, chnkZ) {
+function generateChunk(chnkX, chnkZ) {
     let chunkData = [];
     for (var z = 0; z < CHUNKSIZE; z++) {
         chunkData[z] = [];
