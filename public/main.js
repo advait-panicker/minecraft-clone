@@ -151,9 +151,8 @@ camera.position.z = 697.3360835106855;
 camera.rotation.y = 0.8320073541233839;
 // Main Chunk Loop
 function drawRenderChunks() {
-    let playerChunkX = Math.floor(camera.position.x / BLOCKSIZE / WORLDSIZE);
-    let playerChunkZ = Math.floor(camera.position.z / BLOCKSIZE / WORLDSIZE);
-    console.log(playerChunkX, playerChunkZ)
+    const playerChunkX = Math.floor(camera.position.x / BLOCKSIZE / WORLDSIZE);
+    const playerChunkZ = Math.floor(camera.position.z / BLOCKSIZE / WORLDSIZE);
     for (var chnkZ = playerChunkZ-RENDERDIST; chnkZ < playerChunkZ+RENDERDIST; chnkZ++) {
         for (var chnkX = playerChunkX-RENDERDIST; chnkX < playerChunkX+RENDERDIST; chnkX++) {
             if (renderedChunks[chnkX + chnkZ * WORLDSIZE] == undefined) {
@@ -162,9 +161,6 @@ function drawRenderChunks() {
             }
         }
     }
-    for (let i = 0, l = renderedChunks.length; i < l; i++) {
-
-    }
 }
 function drawChunk(chnkX, chnkZ) {
     let geom = {};
@@ -172,7 +168,7 @@ function drawChunk(chnkX, chnkZ) {
     for (var z = 0; z < CHUNKSIZE; z++) {
         for (var x = 0; x < CHUNKSIZE; x++) {
             for (var y = 0; y < 256; y++) {
-                let blockName = chunkData(x, y, z).name; 
+                const blockName = chunkData(x, y, z).name; 
                 if (chunkData(x, y, z).name == "air") {
                     continue;
                 } else {
@@ -198,11 +194,11 @@ function drawChunk(chnkX, chnkZ) {
             }
         }
     }
-    // let meshes = [];
     for (let block in geom) {
         for (let i = 0, l = geom[block].length; i < l; i++) {
-            geom[block][i].computeFaceNormals();
-            scene.add(new THREE.Mesh( geom[block][i], textures[block][i]) );
+            // geom[block][i].computeFaceNormals();
+            const object = new THREE.Mesh( geom[block][i], textures[block][i]);
+            scene.add(object);
         }
     }
 }
@@ -211,8 +207,8 @@ function drawChunk(chnkX, chnkZ) {
 
 let clock = new THREE.Clock();
 
+drawRenderChunks();
 function animate() {
-    drawRenderChunks();
     let delta = clock.getDelta();
     if (controls.isLocked) {
         controls.moveForward((moveForward-moveBackward)*SPEED*delta);
@@ -223,6 +219,3 @@ function animate() {
     renderer.render(scene, camera);
 }
 animate();
-// while(true) {
-//     drawRenderChunks();
-// }
